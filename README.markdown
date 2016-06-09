@@ -2,19 +2,19 @@ JsonRPC PHP Client and Server
 =============================
 
 A simple Json-RPC client/server that just works.
+Forked from [fguillot/JsonRPC](https://github.com/fguillot/JsonRPC) while trying to keep it slim and speedy.
 
-[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/fguillot/JsonRPC/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/fguillot/JsonRPC/?branch=master)
-[![Build Status](https://travis-ci.org/fguillot/JsonRPC.svg?branch=master)](https://travis-ci.org/fguillot/JsonRPC)
+[![Build Status](https://travis-ci.org/rambler-digital-solutions/php-json-rpc.svg?branch=master)](https://travis-ci.org/rambler-digital-solutions/php-json-rpc)
 
 Features
 --------
 
-- JSON-RPC 2.0 only
+- JSON-RPC 2.0 protocol only
 - The server support batch requests and notifications
 - Authentication and IP based client restrictions
-- Custom Middleware
+- Minimalist: there is only 2 files
 - Fully unit tested
-- Requirements: PHP >= 5.3.4
+- Requirements: PHP >= 5.6
 - License: MIT
 
 Author
@@ -26,7 +26,7 @@ Installation with Composer
 --------------------------
 
 ```bash
-composer require fguillot/json-rpc @stable
+composer require rambler-digital-solutions/php-json-rpc @stable
 ```
 
 Examples
@@ -41,17 +41,20 @@ Callback binding:
 
 use JsonRPC\Server;
 
-$server = new Server();
-$server->getProcedureHandler()
-    ->withCallback('addition', function ($a, $b) {
-        return $a + $b;
-    })
-    ->withCallback('random', function ($start, $end) {
-        return mt_rand($start, $end);
-    })
-;
+$server = new Server;
 
+// Procedures registration
+$server->register('addition', function ($a, $b) {
+    return $a + $b;
+});
+
+$server->register('random', function ($start, $end) {
+    return mt_rand($start, $end);
+});
+
+// Return the response to the client
 echo $server->execute();
+
 ```
 
 Class/Method binding:
@@ -69,62 +72,65 @@ class Api
     }
 }
 
-$server = new Server();
-$procedureHandler = $server->getProcedureHandler();
+$server = new Server;
 
 // Bind the method Api::doSomething() to the procedure myProcedure
-$procedureHandler->withClassAndMethod('myProcedure', 'Api', 'doSomething');
+$server->bind('myProcedure', 'Api', 'doSomething');
 
 // Use a class instance instead of the class name
-$procedureHandler->withClassAndMethod('mySecondProcedure', new Api, 'doSomething');
+$server->bind('mySecondProcedure', new Api, 'doSomething');
 
 // The procedure and the method are the same
-$procedureHandler->withClassAndMethod('doSomething', 'Api');
+$server->bind('doSomething', 'Api');
 
-// Attach the class, the client will be able to call directly Api::doSomething()
-$procedureHandler->withObject(new Api());
+// Attach the class, client will be able to call directly Api::doSomething()
+$server->attach(new Api);
 
 echo $server->execute();
 
 ```
 
-Server Middleware:
+Before callback:
 
-Middleware might be used to authenticate and authorize the client.
-They are executed before each procedure.
+Before each procedure execution, a custom method can be called.
+
+This method receive the following arguments: `$username, $password, $class, $method`.
 
 ```php
 <?php
 
 use JsonRPC\Server;
-use JsonRPC\MiddlewareInterface;
-use JsonRPC\Exception\AuthenticationFailureException;
+use JsonRPC\AuthenticationFailure;
 
 class Api
 {
-    public function doSomething($arg1, $arg2 = 3)
+    public function beforeProcedure($username, $password, $class, $method)
     {
-        return $arg1 + $arg2;
-    }
-}
-
-class MyMiddleware implements MiddlewareInterface
-{
-    public function execute($username, $password, $procedureName)
-    {
-        if ($username !== 'foobar') {
-            throw new AuthenticationFailureException('Wrong credentials!');
+        if ($login_condition_failed) {
+            throw new AuthenticationFailure('Wrong credentials!');
         }
     }
+
+    public function addition($a, $b)
+    {
+        return $a + $b;
+    }
 }
 
-$server = new Server();
-$server->getMiddlewareHanlder()->withMiddleware(new MyMiddleware());
-$server->getProcedureHandler()->withObject(new Api());
+$server = new Server;
+$server->authentication(['myuser' => 'mypassword']);
+
+// Register the before callback
+$server->before('beforeProcedure');
+
+$server->attach(new Api);
+
 echo $server->execute();
+
 ```
 
-You can raise a `AuthenticationFailureException` when the API credentials are wrong or a `AccessDeniedException` when the user is not allowed to access to the procedure.
+You can use this method to implements a custom authentication system or anything else.
+If you would like to reject the authentication, you can throw the exception `JsonRPC\AuthenticationFailure`.
 
 ### Client
 
@@ -137,6 +143,8 @@ use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
 $result = $client->execute('addition', [3, 5]);
+
+var_dump($result);
 ```
 
 Example with named arguments:
@@ -148,11 +156,13 @@ use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
 $result = $client->execute('random', ['end' => 10, 'start' => 1]);
+
+var_dump($result);
 ```
 
 Arguments are called in the right order.
 
-Examples with the magic method `__call()`:
+Examples with shortcut methods:
 
 ```php
 <?php
@@ -161,6 +171,8 @@ use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
 $result = $client->random(50, 100);
+
+var_dump($result);
 ```
 
 The example above use positional arguments for the request and this one use named arguments:
@@ -193,20 +205,20 @@ print_r($results);
 All results are stored at the same position of the call.
 
 ### Client exceptions
-
 Client exceptions are normally thrown when an error is returned by the server. You can change this behaviour by
-using the `$returnException` argument which causes exceptions to be returned. This can be extremely useful when
+using the 'suppress_errors' option which causes exceptions to be returned. This can be extremely useful when
 executing the batch request. 
 
 - `BadFunctionCallException`: Procedure not found on the server
 - `InvalidArgumentException`: Wrong procedure arguments
-- `JsonRPC\Exception\AccessDeniedException`: Access denied
-- `JsonRPC\Exception\ConnectionFailureException`: Connection failure
-- `JsonRPC\Exception\ServerErrorException`: Internal server error
+- `JsonRPC\AccessDeniedException`: Access denied
+- `JsonRPC\ConnectionFailureException`: Connection failure
+- `JsonRPC\ServerErrorException`: Internal server error
+- `RuntimeException`: Protocol error
 
 ### Enable client debugging
 
-You can enable the debug mode to see the JSON request and response:
+You can enable the debug to see the JSON request and response:
 
 ```php
 <?php
@@ -214,10 +226,10 @@ You can enable the debug mode to see the JSON request and response:
 use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
-$client->getHttpClient()->withDebug();
+$client->debug = true;
 ```
 
-The debug output is sent to the PHP system logger.
+The debug output is sent to the PHP's system logger.
 You can configure the log destination in your `php.ini`.
 
 Output example:
@@ -242,7 +254,7 @@ Output example:
 
 ### IP based client restrictions
 
-The server can allow only some IP addresses:
+The server can allow only some IP adresses:
 
 ```php
 <?php
@@ -253,6 +265,8 @@ $server = new Server;
 
 // IP client restrictions
 $server->allowHosts(['192.168.0.1', '127.0.0.1']);
+
+// Procedures registration
 
 [...]
 
@@ -276,6 +290,8 @@ $server = new Server;
 // List of users to allow
 $server->authentication(['user1' => 'password1', 'user2' => 'password2']);
 
+// Procedures registration
+
 [...]
 
 // Return the response to the client
@@ -290,9 +306,7 @@ On the client, set credentials like that:
 use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
-$client->getHttpClient()
-    ->withUsername('Foo')
-    ->withPassword('Bar');
+$client->authentication('user1', 'password1');
 ```
 
 If the authentication failed, the client throw a RuntimeException.
@@ -303,7 +317,7 @@ Using an alternative authentication header:
 
 use JsonRPC\Server;
 
-$server = new Server();
+$server = new Server;
 $server->setAuthenticationHeader('X-Authentication');
 $server->authentication(['myusername' => 'mypassword']);
 ```
@@ -311,44 +325,38 @@ $server->authentication(['myusername' => 'mypassword']);
 The example above will use the HTTP header `X-Authentication` instead of the standard `Authorization: Basic [BASE64_CREDENTIALS]`.
 The username/password values need be encoded in base64: `base64_encode('username:password')`.
 
-### Local Exceptions
+### Exceptions
 
-By default, the server will relay all exceptions to the client.
-If you would like to relay only some of them, use the method `Server::withLocalException($exception)`:
+If you want to send an error to the client you can throw an exception.
+You should configure which exceptions should be relayed to the client first:
 
 ```php
 <?php
 
 use JsonRPC\Server;
-class MyException1 extends Exception {};
-class MyException2 extends Exception {};
+class MyException extends RuntimeException {};
 
-$server = new Server();
+$server = new Server;
 
-// Exceptions that should NOT be relayed to the client, if they occurs
-$server
-    ->withLocalException('MyException1')
-    ->withLocalException('MyException2')
-;
+// Exceptions that should be relayed to the client, if they occur
+$server->attachException('MyException');
+
+// Procedures registration
 
 [...]
 
+// Return the response to the client
 echo $server->execute();
 ```
 
-### Callback before client request
+Then you can throw that exception inside your procedure:
 
-You can use a callback to change the HTTP headers or the URL before to make the request to the server.
+```
+throw new MyException("An error occured", 123);
+```
 
-Example:
+To relay all exceptions regardless of type, leave out the exception class name:
 
-```php
-<?php
-
-$client = new Client();
-$client->getHttpClient()->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-    $client->withHeaders(array('Content-Length: '.strlen($payload)));
-});
-
-$client->myProcedure(123);
+```
+$server->attachException();
 ```

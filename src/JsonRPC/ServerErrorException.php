@@ -1,13 +1,13 @@
 <?php
 
-namespace JsonRPC\Exception;
+namespace JsonRPC;
 
 use Exception;
 
 /**
  * Class ServerErrorException
  *
- * @package JsonRPC\Exception
+ * @package JsonRPC
  * @author  Frederic Guillot
  */
 class ServerErrorException extends Exception
