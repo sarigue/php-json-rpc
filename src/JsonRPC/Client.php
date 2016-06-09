@@ -184,18 +184,9 @@ class Client
      */
     private function sendPayload($payload)
     {
-        try {
-
-            return ResponseParser::create()
-                ->withPayload($this->httpClient->execute($payload))
-                ->parse();
-
-        } catch (Exception $e) {
-            if ($this->returnException) {
-                return $e;
-            }
-
-            throw $e;
-        }
+        return ResponseParser::create()
+            ->withReturnException($this->returnException)
+            ->withPayload($this->httpClient->execute($payload))
+            ->parse();
     }
 }
