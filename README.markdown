@@ -2,10 +2,9 @@ JsonRPC PHP Client and Server
 =============================
 
 A simple Json-RPC client/server that just works.
+Forked from [fguillot/JsonRPC](https://github.com/fguillot/JsonRPC) while trying to keep it slim and speedy.
 
-[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/fguillot/JsonRPC/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/fguillot/JsonRPC/?branch=master)
-
-[![Build Status](https://travis-ci.org/fguillot/JsonRPC.svg?branch=master)](https://travis-ci.org/fguillot/JsonRPC)
+[![Build Status](https://travis-ci.org/rambler-digital-solutions/php-json-rpc.svg?branch=master)](https://travis-ci.org/rambler-digital-solutions/php-json-rpc)
 
 Features
 --------
@@ -15,7 +14,7 @@ Features
 - Authentication and IP based client restrictions
 - Minimalist: there is only 2 files
 - Fully unit tested
-- Requirements: PHP >= 5.3.4
+- Requirements: PHP >= 5.6
 - License: MIT
 
 Author
@@ -27,7 +26,7 @@ Installation with Composer
 --------------------------
 
 ```bash
-composer require fguillot/json-rpc @stable
+composer require rambler-digital-solutions/php-json-rpc @stable
 ```
 
 Examples
@@ -45,7 +44,6 @@ use JsonRPC\Server;
 $server = new Server;
 
 // Procedures registration
-
 $server->register('addition', function ($a, $b) {
     return $a + $b;
 });
@@ -57,7 +55,6 @@ $server->register('random', function ($start, $end) {
 // Return the response to the client
 echo $server->execute();
 
-?>
 ```
 
 Class/Method binding:
@@ -91,7 +88,6 @@ $server->attach(new Api);
 
 echo $server->execute();
 
-?>
 ```
 
 Before callback:
@@ -131,7 +127,6 @@ $server->attach(new Api);
 
 echo $server->execute();
 
-?>
 ```
 
 You can use this method to implements a custom authentication system or anything else.

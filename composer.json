@@ -1,7 +1,7 @@
 {
-    "name": "fguillot/json-rpc",
+    "name": "rambler-digital-solutions/php-json-rpc",
     "description": "Simple Json-RPC client/server library that just works",
-    "homepage": "https://github.com/fguillot/JsonRPC",
+    "homepage": "https://github.com/rambler-digital-solutions/php-json-rpc",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -10,7 +10,7 @@
         }
     ],
     "require": {
-        "php": ">=5.3.4"
+        "php": ">=5.6"
     },
     "autoload": {
         "psr-0": {"JsonRPC": "src/"}
