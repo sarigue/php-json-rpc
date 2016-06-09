@@ -2,7 +2,6 @@ language: php
 sudo: false
 
 php:
-  - hhvm
   - 7.0
   - 5.6
   - 5.5
@@ -11,11 +10,9 @@ php:
 
 matrix:
   fast_finish: true
-  allow_failures:
-    - php: hhvm
 
 before_script:
-  - composer install
+  - composer dump-autoload
 
 script:
   - phpunit

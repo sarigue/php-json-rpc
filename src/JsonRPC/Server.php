@@ -3,13 +3,11 @@
 namespace JsonRPC;
 
 use Closure;
+use BadFunctionCallException;
 use Exception;
-use JsonRPC\Request\BatchRequestParser;
-use JsonRPC\Request\RequestParser;
-use JsonRPC\Response\ResponseBuilder;
-use JsonRPC\Validator\HostValidator;
-use JsonRPC\Validator\JsonFormatValidator;
-use JsonRPC\Validator\UserValidator;
+use InvalidArgumentException;
+use ReflectionFunction;
+use ReflectionMethod;
 
 /**
  * JsonRPC server class
@@ -20,135 +18,95 @@ use JsonRPC\Validator\UserValidator;
 class Server
 {
     /**
-     * Allowed hosts
-     *
-     * @access protected
-     * @var array
-     */
-    protected $hosts = array();
-
-    /**
      * Data received from the client
      *
-     * @access protected
+     * @access private
      * @var array
      */
-    protected $payload = array();
+    private $payload = array();
 
     /**
-     * List of exceptions that should not be relayed to the client
+     * List of procedures
      *
-     * @access protected
-     * @var array()
+     * @access private
+     * @var array
      */
-    protected $localExceptions = array();
+    private $callbacks = array();
+
+    /**
+     * List of classes
+     *
+     * @access private
+     * @var array
+     */
+    private $classes = array();
+
+    /**
+     * List of instances
+     *
+     * @access private
+     * @var array
+     */
+    private $instances = array();
+
+    /**
+     * List of exception classes that should be relayed to client
+     *
+     * @access private
+     * @var array
+     */
+    private $exceptions = array();
+
+    /**
+     * Method name to execute before the procedure
+     *
+     * @access private
+     * @var string
+     */
+    private $before = '';
 
     /**
      * Username
      *
-     * @access protected
+     * @access private
      * @var string
      */
-    protected $username = '';
+    private $username = '';
 
     /**
      * Password
      *
-     * @access protected
+     * @access private
      * @var string
      */
-    protected $password = '';
-
-    /**
-     * Allowed users
-     *
-     * @access protected
-     * @var array
-     */
-    protected $users = array();
-
-    /**
-     * $_SERVER
-     *
-     * @access protected
-     * @var array
-     */
-    protected $serverVariable;
-
-    /**
-     * ProcedureHandler object
-     *
-     * @access protected
-     * @var ProcedureHandler
-     */
-    protected $procedureHandler;
-
-    /**
-     * MiddlewareHandler object
-     *
-     * @access protected
-     * @var MiddlewareHandler
-     */
-    protected $middlewareHandler;
-
-    /**
-     * Response builder
-     *
-     * @access protected
-     * @var ResponseBuilder
-     */
-    protected $responseBuilder;
-
-    /**
-     * Response builder
-     *
-     * @access protected
-     * @var RequestParser
-     */
-    protected $requestParser;
-
-    /**
-     *
-     * Batch request parser
-     *
-     * @access protected
-     * @var BatchRequestParser
-     */
-    protected $batchRequestParser;
+    private $password = '';
 
     /**
      * Constructor
      *
      * @access public
-     * @param  string              $request
-     * @param  array               $server
-     * @param  ResponseBuilder     $responseBuilder
-     * @param  RequestParser       $requestParser
-     * @param  BatchRequestParser  $batchRequestParser
-     * @param  ProcedureHandler    $procedureHandler
-     * @param  MiddlewareHandler   $middlewareHandler
+     * @param  string    $request
      */
-    public function __construct(
-        $request = '',
-        array $server = array(),
-        ResponseBuilder $responseBuilder = null,
-        RequestParser $requestParser = null,
-        BatchRequestParser $batchRequestParser = null,
-        ProcedureHandler $procedureHandler = null,
-        MiddlewareHandler $middlewareHandler = null
-    ) {
+    public function __construct($request = '')
+    {
         if ($request !== '') {
             $this->payload = json_decode($request, true);
-        } else {
+        }
+        else {
             $this->payload = json_decode(file_get_contents('php://input'), true);
         }
+    }
 
-        $this->serverVariable = $server ?: $_SERVER;
-        $this->responseBuilder = $responseBuilder ?: ResponseBuilder::create();
-        $this->requestParser = $requestParser ?: RequestParser::create();
-        $this->batchRequestParser = $batchRequestParser ?: BatchRequestParser::create();
-        $this->procedureHandler = $procedureHandler ?: new ProcedureHandler();
-        $this->middlewareHandler = $middlewareHandler ?: new MiddlewareHandler();
+    /**
+     * Set a payload
+     *
+     * @access public
+     * @param  array   $payload
+     * @return Server
+     */
+    public function setPayload(array $payload)
+    {
+        $this->payload = $payload;
     }
 
     /**
@@ -156,42 +114,20 @@ class Server
      *
      * @access public
      * @param  string   $header   Header name
-     * @return $this
+     * @return Server
      */
     public function setAuthenticationHeader($header)
     {
         if (! empty($header)) {
-            $header = 'HTTP_'.str_replace('-', '_', strtoupper($header));
-            $value = $this->getServerVariable($header);
 
-            if (! empty($value)) {
-                list($this->username, $this->password) = explode(':', base64_decode($value));
+            $header = 'HTTP_'.str_replace('-', '_', strtoupper($header));
+
+            if (isset($_SERVER[$header])) {
+                list($this->username, $this->password) = explode(':', @base64_decode($_SERVER[$header]));
             }
         }
 
         return $this;
-    }
-
-    /**
-     * Get ProcedureHandler
-     *
-     * @access public
-     * @return ProcedureHandler
-     */
-    public function getProcedureHandler()
-    {
-        return $this->procedureHandler;
-    }
-
-    /**
-     * Get MiddlewareHandler
-     *
-     * @access public
-     * @return MiddlewareHandler
-     */
-    public function getMiddlewareHandler()
-    {
-        return $this->middlewareHandler;
     }
 
     /**
@@ -202,7 +138,7 @@ class Server
      */
     public function getUsername()
     {
-        return $this->username ?: $this->getServerVariable('PHP_AUTH_USER');
+        return $this->username ?: @$_SERVER['PHP_AUTH_USER'];
     }
 
     /**
@@ -213,32 +149,76 @@ class Server
      */
     public function getPassword()
     {
-        return $this->password ?: $this->getServerVariable('PHP_AUTH_PW');
+        return $this->password ?: @$_SERVER['PHP_AUTH_PW'];
+    }
+
+    /**
+     * Send authentication failure response
+     *
+     * @access public
+     */
+    public function sendAuthenticationFailureResponse($payload)
+    {
+        header('WWW-Authenticate: Basic realm="JsonRPC"');
+        header('Content-Type: application/json');
+        header('HTTP/1.0 401 Unauthorized');
+
+		// A notification (request without id) does not expect a response
+		if ((is_array($payload)) && (array_key_exists('id', $payload))) {
+			echo '{ "jsonrpc" : "2.0", "id" : "' . $payload['id'] . '", "error" : { "code" : "401", "message" : "Authentication failed" } }';
+		}
+
+        exit;
+    }
+
+    /**
+     * Send forbidden response
+     *
+     * @access public
+     */
+    public function sendForbiddenResponse($payload)
+    {
+        header('Content-Type: application/json');
+        header('HTTP/1.0 403 Forbidden');
+
+		// A notification (request without id) does not expect a response
+        if ((is_array($payload)) && (array_key_exists('id', $payload))) {
+	        echo '{ "jsonrpc" : "2.0", "id" : "' . $payload['id'] . '", "error" : { "code" : "403", "message" : "Access forbidden" } }';
+	    }
+
+        exit;
     }
 
     /**
      * IP based client restrictions
      *
+     * Return an HTTP error 403 if the client is not allowed
+     *
      * @access public
      * @param  array   $hosts   List of hosts
-     * @return $this
      */
     public function allowHosts(array $hosts)
     {
-        $this->hosts = $hosts;
-        return $this;
+        if (! in_array($_SERVER['REMOTE_ADDR'], $hosts)) {
+            $this->sendForbiddenResponse();
+        }
     }
 
     /**
      * HTTP Basic authentication
      *
+     * Return an HTTP error 401 if the client is not allowed
+     *
      * @access public
-     * @param  array   $users   Dictionary of username/password
-     * @return $this
+     * @param  array   $users   Map of username/password
+     * @return Server
      */
     public function authentication(array $users)
     {
-        $this->users = $users;
+        if (! isset($users[$this->getUsername()]) || $users[$this->getUsername()] !== $this->getPassword()) {
+            $this->sendAuthenticationFailureResponse();
+        }
+
         return $this;
     }
 
@@ -246,14 +226,13 @@ class Server
      * Register a new procedure
      *
      * @access public
-     * @deprecated Use $server->getProcedureHandler()->withCallback($procedure, $callback)
      * @param  string   $procedure       Procedure name
      * @param  closure  $callback        Callback
-     * @return $this
+     * @return Server
      */
     public function register($procedure, Closure $callback)
     {
-        $this->procedureHandler->withCallback($procedure, $callback);
+        $this->callbacks[$procedure] = $callback;
         return $this;
     }
 
@@ -261,15 +240,18 @@ class Server
      * Bind a procedure to a class
      *
      * @access public
-     * @deprecated Use $server->getProcedureHandler()->withClassAndMethod($procedure, $class, $method);
      * @param  string   $procedure    Procedure name
      * @param  mixed    $class        Class name or instance
      * @param  string   $method       Procedure name
-     * @return $this
+     * @return Server
      */
     public function bind($procedure, $class, $method = '')
     {
-        $this->procedureHandler->withClassAndMethod($procedure, $class, $method);
+        if ($method === '') {
+            $method = $procedure;
+        }
+
+        $this->classes[$procedure] = array($class, $method);
         return $this;
     }
 
@@ -277,27 +259,175 @@ class Server
      * Bind a class instance
      *
      * @access public
-     * @deprecated Use $server->getProcedureHandler()->withObject($instance);
      * @param  mixed   $instance    Instance name
-     * @return $this
+     * @return Server
      */
     public function attach($instance)
     {
-        $this->procedureHandler->withObject($instance);
+        $this->instances[] = $instance;
         return $this;
     }
 
     /**
-     * Exception classes that should not be relayed to the client
+     * Bind an exception
+     * If this exception occurs it is relayed to the client as JSON-RPC error
      *
      * @access public
-     * @param  Exception|string $exception
-     * @return $this
+     * @param  mixed   $exception    Exception class. Defaults to all.
+     * @return Server
      */
-    public function withLocalException($exception)
+    public function attachException($exception = 'Exception')
     {
-        $this->localExceptions[] = $exception;
+        $this->exceptions[] = $exception;
         return $this;
+    }
+
+    /**
+     * Attach a method that will be called before the procedure
+     *
+     * @access public
+     * @param  string  $before
+     * @return Server
+     */
+    public function before($before)
+    {
+        $this->before = $before;
+        return $this;
+    }
+
+    /**
+     * Return the response to the client
+     *
+     * @access public
+     * @param  array $data Data to send to the client
+     * @param  array $payload Incoming data
+     * @return string
+     * @throws ResponseEncodingFailure
+     */
+    public function getResponse(array $data, array $payload = array())
+    {
+        if (! array_key_exists('id', $payload)) {
+            return '';
+        }
+
+        $response = array(
+            'jsonrpc' => '2.0',
+            'id' => $payload['id']
+        );
+
+        $response = array_merge($response, $data);
+
+        @header('Content-Type: application/json');
+
+        $encodedResponse = json_encode($response);
+        $jsonError = json_last_error();
+
+        if ($jsonError !== JSON_ERROR_NONE) {
+            switch ($jsonError) {
+                case JSON_ERROR_NONE:
+                    $errorMessage = 'No errors';
+                    break;
+                case JSON_ERROR_DEPTH:
+                    $errorMessage = 'Maximum stack depth exceeded';
+                    break;
+                case JSON_ERROR_STATE_MISMATCH:
+                    $errorMessage = 'Underflow or the modes mismatch';
+                    break;
+                case JSON_ERROR_CTRL_CHAR:
+                    $errorMessage = 'Unexpected control character found';
+                    break;
+                case JSON_ERROR_SYNTAX:
+                    $errorMessage = 'Syntax error, malformed JSON';
+                    break;
+                case JSON_ERROR_UTF8:
+                    $errorMessage = 'Malformed UTF-8 characters, possibly incorrectly encoded';
+                    break;
+                default:
+                    $errorMessage = 'Unknown error';
+                    break;
+            }
+
+            throw new ResponseEncodingFailure($errorMessage,$jsonError);
+        }
+
+        return $encodedResponse;
+    }
+
+    /**
+     * Parse the payload and test if the parsed JSON is ok
+     *
+     * @access private
+     */
+    private function checkJsonFormat()
+    {
+        if (! is_array($this->payload)) {
+            throw new InvalidJsonFormat('Malformed payload');
+        }
+    }
+
+    /**
+     * Test if all required JSON-RPC parameters are here
+     *
+     * @access private
+     */
+    private function checkRpcFormat()
+    {
+        if (! isset($this->payload['jsonrpc']) ||
+            ! isset($this->payload['method']) ||
+            ! is_string($this->payload['method']) ||
+            $this->payload['jsonrpc'] !== '2.0' ||
+            (isset($this->payload['params']) && ! is_array($this->payload['params']))) {
+
+            throw new InvalidJsonRpcFormat('Invalid JSON RPC payload');
+        }
+    }
+
+    /**
+     * Return true if we have a batch request
+     *
+     * @access public
+     * @return boolean
+     */
+    private function isBatchRequest()
+    {
+        return array_keys($this->payload) === range(0, count($this->payload) - 1);
+    }
+
+    /**
+     * Handle batch request
+     *
+     * @access private
+     * @return string
+     */
+    private function handleBatchRequest()
+    {
+        $responses = array();
+
+        foreach ($this->payload as $payload) {
+
+            if (! is_array($payload)) {
+
+                $responses[] = $this->getResponse(array(
+                    'error' => array(
+                        'code' => -32600,
+                        'message' => 'Invalid Request'
+                    )),
+                    array('id' => null)
+                );
+            }
+            else {
+
+                $server = clone($this);
+                $server->setPayload($payload);
+                $response = $server->execute();
+
+                if (! empty($response)) {
+                    $responses[] = $response;
+                }
+            }
+        }
+
+        return empty($responses) ? '' : '['.implode(',', $responses).']';
     }
 
     /**
@@ -309,78 +439,258 @@ class Server
     public function execute()
     {
         try {
-            JsonFormatValidator::validate($this->payload);
-            HostValidator::validate($this->hosts, $this->getServerVariable('REMOTE_ADDR'));
-            UserValidator::validate($this->users, $this->getUsername(), $this->getPassword());
 
-            $this->middlewareHandler
-                ->withUsername($this->getUsername())
-                ->withPassword($this->getPassword())
-            ;
+            $this->checkJsonFormat();
 
-            $response = $this->parseRequest();
+            if ($this->isBatchRequest()){
+                return $this->handleBatchRequest();
+            }
 
-        } catch (Exception $e) {
-            $response = $this->handleExceptions($e);
+            $this->checkRpcFormat();
+
+            $result = $this->executeProcedure(
+                $this->payload['method'],
+                empty($this->payload['params']) ? array() : $this->payload['params']
+            );
+
+            return $this->getResponse(array('result' => $result), $this->payload);
         }
+        catch (InvalidJsonFormat $e) {
 
-        $this->responseBuilder->sendHeaders();
-        return $response;
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => -32700,
+                    'message' => 'Parse error'
+                )),
+                array('id' => null)
+            );
+        }
+        catch (InvalidJsonRpcFormat $e) {
+
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => -32600,
+                    'message' => 'Invalid Request'
+                )),
+                array('id' => null)
+            );
+        }
+        catch (BadFunctionCallException $e) {
+
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => -32601,
+                    'message' => 'Method not found'
+                )),
+                $this->payload
+            );
+        }
+        catch (InvalidArgumentException $e) {
+
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => -32602,
+                    'message' => 'Invalid params'
+                )),
+                $this->payload
+            );
+        }
+        catch(ResponseEncodingFailure $e){
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => -32603,
+                    'message' => 'Internal error',
+                    'data' => $e->getMessage()
+                )),
+                $this->payload
+            );
+        }
+        catch (AuthenticationFailure $e) {
+            $this->sendAuthenticationFailureResponse($this->payload);
+        }
+        catch (AccessDeniedException $e) {
+            $this->sendForbiddenResponse($this->payload);
+        }
+        catch (ResponseException $e) {
+            return $this->getResponse(array(
+                'error' => array(
+                    'code' => $e->getCode(),
+                    'message' => $e->getMessage(),
+                    'data' => $e->getData(),
+                )),
+                $this->payload
+            );
+        }
+        catch (Exception $e) {
+
+            foreach ($this->exceptions as $class) {
+                if ($e instanceof $class) {
+                    return $this->getResponse(array(
+                        'error' => array(
+                            'code' => $e->getCode(),
+                            'message' => $e->getMessage()
+                        )),
+                        $this->payload
+                    );
+                }
+            }
+
+            throw $e;
+        }
     }
 
     /**
-     * Handle exceptions
-     * 
-     * @access protected
-     * @param  Exception $e
-     * @return string
-     * @throws Exception
+     * Execute the procedure
+     *
+     * @access public
+     * @param  string   $procedure    Procedure name
+     * @param  array    $params       Procedure params
+     * @return mixed
      */
-    protected function handleExceptions(Exception $e)
+    public function executeProcedure($procedure, array $params = array())
     {
-        foreach ($this->localExceptions as $exception) {
-            if ($e instanceof $exception) {
-                throw $e;
+        if (isset($this->callbacks[$procedure])) {
+            return $this->executeCallback($this->callbacks[$procedure], $params);
+        }
+        else if (isset($this->classes[$procedure]) && method_exists($this->classes[$procedure][0], $this->classes[$procedure][1])) {
+            return $this->executeMethod($this->classes[$procedure][0], $this->classes[$procedure][1], $params);
+        }
+
+        foreach ($this->instances as $instance) {
+            if (method_exists($instance, $procedure)) {
+                return $this->executeMethod($instance, $procedure, $params);
             }
         }
 
-        return $this->responseBuilder->withException($e)->build();
+        throw new BadFunctionCallException('Unable to find the procedure');
     }
 
     /**
-     * Parse incoming request
+     * Execute a callback
      *
-     * @access protected
-     * @return string
+     * @access public
+     * @param  Closure   $callback     Callback
+     * @param  array     $params       Procedure params
+     * @return mixed
      */
-    protected function parseRequest()
+    public function executeCallback(Closure $callback, $params)
     {
-        if (BatchRequestParser::isBatchRequest($this->payload)) {
-            return $this->batchRequestParser
-                ->withPayload($this->payload)
-                ->withProcedureHandler($this->procedureHandler)
-                ->withMiddlewareHandler($this->middlewareHandler)
-                ->withLocalException($this->localExceptions)
-                ->parse();
+        $reflection = new ReflectionFunction($callback);
+
+        $arguments = $this->getArguments(
+            $params,
+            $reflection->getParameters(),
+            $reflection->getNumberOfRequiredParameters(),
+            $reflection->getNumberOfParameters()
+        );
+
+        return $reflection->invokeArgs($arguments);
+    }
+
+    /**
+     * Execute a method
+     *
+     * @access public
+     * @param  mixed     $class        Class name or instance
+     * @param  string    $method       Method name
+     * @param  array     $params       Procedure params
+     * @return mixed
+     */
+    public function executeMethod($class, $method, $params)
+    {
+        $instance = is_string($class) ? new $class : $class;
+
+        // Execute before action
+        if (! empty($this->before)) {
+            if (is_callable($this->before)) {
+                call_user_func_array($this->before, array($this->getUsername(), $this->getPassword(), get_class($class), $method));
+            }
+            else if (method_exists($instance, $this->before)) {
+                $instance->{$this->before}($this->getUsername(), $this->getPassword(), get_class($class), $method);
+            }
         }
 
-        return $this->requestParser
-            ->withPayload($this->payload)
-            ->withProcedureHandler($this->procedureHandler)
-            ->withMiddlewareHandler($this->middlewareHandler)
-            ->withLocalException($this->localExceptions)
-            ->parse();
+        $reflection = new ReflectionMethod($class, $method);
+
+        $arguments = $this->getArguments(
+            $params,
+            $reflection->getParameters(),
+            $reflection->getNumberOfRequiredParameters(),
+            $reflection->getNumberOfParameters()
+        );
+
+        return $reflection->invokeArgs($instance, $arguments);
     }
 
     /**
-     * Check existence and get value of server variable
+     * Get procedure arguments
      *
-     * @access protected
-     * @param  string $variable
-     * @return string|null
+     * @access public
+     * @param  array    $request_params       Incoming arguments
+     * @param  array    $method_params        Procedure arguments
+     * @param  integer  $nb_required_params   Number of required parameters
+     * @param  integer  $nb_max_params        Maximum number of parameters
+     * @return array
      */
-    protected function getServerVariable($variable)
+    public function getArguments(array $request_params, array $method_params, $nb_required_params, $nb_max_params)
     {
-        return isset($this->serverVariable[$variable]) ? $this->serverVariable[$variable] : null;
+        $nb_params = count($request_params);
+
+        if ($nb_params < $nb_required_params) {
+            throw new InvalidArgumentException('Wrong number of arguments');
+        }
+
+        if ($nb_params > $nb_max_params) {
+            throw new InvalidArgumentException('Too many arguments');
+        }
+
+        if ($this->isPositionalArguments($request_params, $method_params)) {
+            return $request_params;
+        }
+
+        return $this->getNamedArguments($request_params, $method_params);
+    }
+
+    /**
+     * Return true if we have positional parametes
+     *
+     * @access public
+     * @param  array    $request_params      Incoming arguments
+     * @param  array    $method_params       Procedure arguments
+     * @return bool
+     */
+    public function isPositionalArguments(array $request_params, array $method_params)
+    {
+        return array_keys($request_params) === range(0, count($request_params) - 1);
+    }
+
+    /**
+     * Get named arguments
+     *
+     * @access public
+     * @param  array    $request_params      Incoming arguments
+     * @param  array    $method_params       Procedure arguments
+     * @return array
+     */
+    public function getNamedArguments(array $request_params, array $method_params)
+    {
+        $params = array();
+
+        foreach ($method_params as $p) {
+
+            $name = $p->getName();
+
+            if (isset($request_params[$name])) {
+                $params[$name] = $request_params[$name];
+            }
+            else if ($p->isDefaultValueAvailable()) {
+                $params[$name] = $p->getDefaultValue();
+            }
+            else {
+                throw new InvalidArgumentException('Missing argument: '.$name);
+            }
+        }
+
+        return $params;
     }
 }

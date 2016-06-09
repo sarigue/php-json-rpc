@@ -1,13 +1,13 @@
 <?php
 
-namespace JsonRPC\Exception;
+namespace JsonRPC;
 
 use Exception;
 
 /**
  * Class AccessDeniedException
  *
- * @package JsonRPC\Exception
+ * @package JsonRPC
  * @author  Frederic Guillot
  */
 class AccessDeniedException extends Exception

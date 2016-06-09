@@ -2,9 +2,6 @@
 
 use JsonRPC\Server;
 
-require_once __DIR__.'/../vendor/autoload.php';
-require_once __DIR__.'/Response/HeaderMockTest.php';
-
 class C
 {
     public function doSomething()
@@ -13,11 +10,11 @@ class C
     }
 }
 
-class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
+class ServerProtocolTest extends PHPUnit_Framework_TestCase
 {
     public function testPositionalParameters()
     {
-        $subtract = function ($minuend, $subtrahend) {
+        $subtract = function($minuend, $subtrahend) {
             return $minuend - $subtrahend;
         };
 
@@ -38,9 +35,10 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testNamedParameters()
     {
-        $subtract = function ($minuend, $subtrahend) {
+        $subtract = function($minuend, $subtrahend) {
             return $minuend - $subtrahend;
         };
 
@@ -61,10 +59,12 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testNotification()
     {
         $update = function($p1, $p2, $p3, $p4, $p5) {};
         $foobar = function() {};
+
 
         $server = new Server('{"jsonrpc": "2.0", "method": "update", "params": [1,2,3,4,5]}');
         $server->register('update', $update);
@@ -72,12 +72,14 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
 
         $this->assertEquals('', $server->execute());
 
+
         $server = new Server('{"jsonrpc": "2.0", "method": "foobar"}');
         $server->register('update', $update);
         $server->register('foobar', $foobar);
 
         $this->assertEquals('', $server->execute());
     }
+
 
     public function testNoMethod()
     {
@@ -89,6 +91,7 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testInvalidJson()
     {
         $server = new Server('{"jsonrpc": "2.0", "method": "foobar, "params": "bar", "baz]');
@@ -99,9 +102,10 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testInvalidRequest()
     {
-        $server = new Server('{"jsonrpc": "2.0", "method": 1, "params": "bar", "id": 1}');
+        $server = new Server('{"jsonrpc": "2.0", "method": 1, "params": "bar"}');
 
         $this->assertEquals(
             json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true),
@@ -125,6 +129,7 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testBatchInvalidJson()
     {
         $server = new Server('[
@@ -138,6 +143,7 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testBatchEmptyArray()
     {
         $server = new Server('[]');
@@ -148,15 +154,17 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
         );
     }
 
+
     public function testBatchNotEmptyButInvalid()
     {
         $server = new Server('[1]');
 
         $this->assertEquals(
-            json_decode('[{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}]', true),
+            json_decode('[{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}]', true),
             json_decode($server->execute(), true)
         );
     }
+
 
     public function testBatchInvalid()
     {
@@ -164,13 +172,14 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
 
         $this->assertEquals(
             json_decode('[
-                {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null},
-                {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null},
-                {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}
+                {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null},
+                {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null},
+                {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
             ]', true),
             json_decode($server->execute(), true)
         );
     }
+
 
     public function testBatchOk()
     {
@@ -216,6 +225,7 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
             json_decode($response, true)
         );
     }
+
 
     public function testBatchNotifications()
     {

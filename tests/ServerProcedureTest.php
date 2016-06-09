@@ -1,8 +1,6 @@
 <?php
 
-use JsonRPC\ProcedureHandler;
-
-require_once __DIR__.'/../vendor/autoload.php';
+use JsonRPC\Server;
 
 class A
 {
@@ -20,14 +18,14 @@ class B
     }
 }
 
-class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
+class ServerProcedureTest extends PHPUnit_Framework_TestCase
 {
     /**
      * @expectedException BadFunctionCallException
      */
     public function testProcedureNotFound()
     {
-        $server = new ProcedureHandler;
+        $server = new Server;
         $server->executeProcedure('a');
     }
 
@@ -36,8 +34,8 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testCallbackNotFound()
     {
-        $server = new ProcedureHandler;
-        $server->withCallback('b', function() {});
+        $server = new Server;
+        $server->register('b', function() {});
         $server->executeProcedure('a');
     }
 
@@ -46,8 +44,8 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testClassNotFound()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllTasks', 'c', 'getAll');
+        $server = new Server;
+        $server->bind('getAllTasks', 'c', 'getAll');
         $server->executeProcedure('getAllTasks');
     }
 
@@ -56,30 +54,32 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testMethodNotFound()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllTasks', 'A', 'getNothing');
+        $server = new Server;
+        $server->bind('getAllTasks', 'A', 'getNothing');
         $server->executeProcedure('getAllTasks');
     }
 
     public function testIsPositionalArguments()
     {
-        $server = new ProcedureHandler;
+        $server = new Server;
         $this->assertFalse($server->isPositionalArguments(
+            array('a' => 'b', 'c' => 'd'),
             array('a' => 'b', 'c' => 'd')
         ));
 
-        $server = new ProcedureHandler;
+        $server = new Server;
         $this->assertTrue($server->isPositionalArguments(
-            array('a', 'b', 'c')
+            array('a', 'b', 'c'),
+            array('a' => 'b', 'c' => 'd')
         ));
     }
 
     public function testBindNamedArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllA', 'A', 'getAll');
-        $server->withClassAndMethod('getAllB', 'B', 'getAll');
-        $server->withClassAndMethod('getAllC', new B, 'getAll');
+        $server = new Server;
+        $server->bind('getAllA', 'A', 'getAll');
+        $server->bind('getAllB', 'B', 'getAll');
+        $server->bind('getAllC', new B, 'getAll');
         $this->assertEquals(6, $server->executeProcedure('getAllA', array('p2' => 4, 'p1' => -2)));
         $this->assertEquals(10, $server->executeProcedure('getAllA', array('p2' => 4, 'p3' => 8, 'p1' => -2)));
         $this->assertEquals(6, $server->executeProcedure('getAllB', array('p1' => 4)));
@@ -88,9 +88,9 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
 
     public function testBindPositionalArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllA', 'A', 'getAll');
-        $server->withClassAndMethod('getAllB', 'B', 'getAll');
+        $server = new Server;
+        $server->bind('getAllA', 'A', 'getAll');
+        $server->bind('getAllB', 'B', 'getAll');
         $this->assertEquals(6, $server->executeProcedure('getAllA', array(4, -2)));
         $this->assertEquals(2, $server->executeProcedure('getAllA', array(4, 0, -2)));
         $this->assertEquals(4, $server->executeProcedure('getAllB', array(2)));
@@ -98,8 +98,8 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
 
     public function testRegisterNamedArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withCallback('getAllA', function($p1, $p2, $p3 = 4) {
+        $server = new Server;
+        $server->register('getAllA', function($p1, $p2, $p3 = 4) {
             return $p1 + $p2 + $p3;
         });
 
@@ -109,8 +109,8 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
 
     public function testRegisterPositionalArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withCallback('getAllA', function($p1, $p2, $p3 = 4) {
+        $server = new Server;
+        $server->register('getAllA', function($p1, $p2, $p3 = 4) {
             return $p1 + $p2 + $p3;
         });
 
@@ -123,8 +123,8 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testTooManyArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllC', new B, 'getAll');
+        $server = new Server;
+        $server->bind('getAllC', new B, 'getAll');
         $server->executeProcedure('getAllC', array('p1' => 3, 'p2' => 5));
     }
 
@@ -133,8 +133,16 @@ class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
      */
     public function testNotEnoughArguments()
     {
-        $server = new ProcedureHandler;
-        $server->withClassAndMethod('getAllC', new B, 'getAll');
+        $server = new Server;
+        $server->bind('getAllC', new B, 'getAll');
         $server->executeProcedure('getAllC');
+    }
+    /**
+     * @expectedException \JsonRPC\ResponseEncodingFailure
+     */
+    public function testInvalidResponse()
+    {
+        $server = new Server;
+        $server->getResponse(array(pack("H*", 'c32e')),array('id'=>1));
     }
 }
