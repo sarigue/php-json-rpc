@@ -1,6 +1,6 @@
 <?php
 
-namespace Rambler\Exceptions;
+namespace Rambler\JsonRpc\Exceptions;
 
 use Exception;
 

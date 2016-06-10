@@ -1,8 +1,10 @@
 <?php
 
-use JsonRPC\Client;
+namespace Rambler\JsonRpc\Tests;
 
-class ClientTest extends PHPUnit_Framework_TestCase
+use Rambler\JsonRpc\Client;
+
+class ClientTest extends \PHPUnit_Framework_TestCase
 {
     public function testParseReponse()
     {
@@ -20,52 +22,62 @@ class ClientTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * @expectedException BadFunctionCallException
+     * @expectedException \BadFunctionCallException
      */
     public function testBadProcedure()
     {
         $client = new Client('http://localhost/');
-        $client->parseResponse(json_decode('{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}', true));
+        $client->parseResponse(
+            json_decode('{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}', true)
+        );
     }
 
     /**
-     * @expectedException InvalidArgumentException
+     * @expectedException \InvalidArgumentException
      */
     public function testInvalidArgs()
     {
         $client = new Client('http://localhost/');
-        $client->parseResponse(json_decode('{"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}', true));
+        $client->parseResponse(
+            json_decode('{"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}', true)
+        );
     }
 
     /**
-     * @expectedException RuntimeException
+     * @expectedException \RuntimeException
      */
     public function testInvalidRequest()
     {
         $client = new Client('http://localhost/');
-        $client->parseResponse(json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true));
+        $client->parseResponse(
+            json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true)
+        );
     }
 
     /**
-     * @expectedException RuntimeException
+     * @expectedException \RuntimeException
      */
     public function testParseError()
     {
         $client = new Client('http://localhost/');
-        $client->parseResponse(json_decode('{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}', true));
+        $client->parseResponse(
+            json_decode('{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}', true)
+        );
     }
 
     /**
-     * @expectedException JsonRPC\ServerErrorException
+     * @expectedException \Rambler\JsonRpc\Exceptions\ServerErrorException
      */
     public function testServerError()
     {
         $client = new Client('http://localhost/');
-        $client->handleHttpErrors(array('HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.1 500 Internal Server Error'));
+        $client->handleHttpErrors(
+            ['HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.1 500 Internal Server Error']
+        );
     }
 
     /**
-     * @expectedException JsonRPC\ConnectionFailureException
+     * @expectedException \Rambler\JsonRpc\Exceptions\ConnectionFailureException
      */
     public function testBadUrl()
     {
@@ -74,36 +86,38 @@ class ClientTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * @expectedException JsonRPC\ConnectionFailureException
+     * @expectedException \Rambler\JsonRpc\Exceptions\ConnectionFailureException
      */
     public function test404()
     {
         $client = new Client('http://localhost/');
-        $client->handleHttpErrors(array('HTTP/1.1 404 Not Found'));
+        $client->handleHttpErrors(['HTTP/1.1 404 Not Found']);
     }
 
     /**
-     * @expectedException JsonRPC\AccessDeniedException
+     * @expectedException \Rambler\JsonRpc\Exceptions\AccessDeniedException
      */
     public function testAccessForbiddenError()
     {
         $client = new Client('http://localhost/');
-        $client->handleHttpErrors(array('HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.1 403 Forbidden'));
+        $client->handleHttpErrors(['HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.1 403 Forbidden']);
     }
 
     /**
-     * @expectedException JsonRPC\AccessDeniedException
+     * @expectedException \Rambler\JsonRpc\Exceptions\AccessDeniedException
      */
     public function testAccessNotAllowedError()
     {
         $client = new Client('http://localhost/');
-        $client->handleHttpErrors(array('HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.0 401 Unauthorized'));
+        $client->handleHttpErrors(['HTTP/1.0 301 Moved Permantenly', 'Connection: close', 'HTTP/1.0 401 Unauthorized']);
     }
 
     public function testSuppressException()
     {
-        $client = new Client('http://localhost/', 3, array(), true);
-        $exception = $client->parseResponse(json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true));
+        $client = new Client('http://localhost/', 3, [], true);
+        $exception = $client->parseResponse(
+            json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true)
+        );
         $this->assertInstanceOf('\RuntimeException', $exception);
     }
 
@@ -120,7 +134,7 @@ class ClientTest extends PHPUnit_Framework_TestCase
         $this->assertArrayHasKey('id', $payload);
         $this->assertArrayNotHasKey('params', $payload);
 
-        $payload = $client->prepareRequest('myProcedure', array('p1' => 3));
+        $payload = $client->prepareRequest('myProcedure', ['p1' => 3]);
         $this->assertNotEmpty($payload);
         $this->assertArrayHasKey('jsonrpc', $payload);
         $this->assertEquals('2.0', $payload['jsonrpc']);
@@ -128,7 +142,7 @@ class ClientTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('myProcedure', $payload['method']);
         $this->assertArrayHasKey('id', $payload);
         $this->assertArrayHasKey('params', $payload);
-        $this->assertEquals(array('p1' => 3), $payload['params']);
+        $this->assertEquals(['p1' => 3], $payload['params']);
     }
 
     public function testBatchRequest()
@@ -137,12 +151,12 @@ class ClientTest extends PHPUnit_Framework_TestCase
 
         $batch = $client->batch();
 
-        $this->assertInstanceOf('JsonRpc\Client', $batch);
+        $this->assertInstanceOf('Rambler\JsonRpc\\Client', $batch);
         $this->assertTrue($client->is_batch);
 
         $batch->random(1, 30);
         $batch->add(3, 5);
-        $batch->execute('foo', array('p1' => 42, 'p3' => 3));
+        $batch->execute('foo', ['p1' => 42, 'p3' => 3]);
 
         $this->assertNotEmpty($client->batch);
         $this->assertEquals(3, count($client->batch));
@@ -151,13 +165,13 @@ class ClientTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('add', $client->batch[1]['method']);
         $this->assertEquals('foo', $client->batch[2]['method']);
 
-        $this->assertEquals(array(1, 30), $client->batch[0]['params']);
-        $this->assertEquals(array(3, 5), $client->batch[1]['params']);
-        $this->assertEquals(array('p1' => 42, 'p3' => 3), $client->batch[2]['params']);
+        $this->assertEquals([1, 30], $client->batch[0]['params']);
+        $this->assertEquals([3, 5], $client->batch[1]['params']);
+        $this->assertEquals(['p1' => 42, 'p3' => 3], $client->batch[2]['params']);
 
         $batch = $client->batch();
 
-        $this->assertInstanceOf('JsonRpc\Client', $batch);
+        $this->assertInstanceOf('\Rambler\JsonRpc\Client', $batch);
         $this->assertTrue($client->is_batch);
         $this->assertEmpty($client->batch);
     }

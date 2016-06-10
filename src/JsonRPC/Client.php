@@ -1,9 +1,9 @@
 <?php
 
-namespace Rambler;
+namespace Rambler\JsonRpc;
 
-use Rambler\Exceptions\ConnectionFailureException;
-use Rambler\Exceptions\ResponseException;
+use Rambler\JsonRpc\Exceptions\ConnectionFailureException;
+use Rambler\JsonRpc\Exceptions\ResponseException;
 
 /**
  * JsonRPC client class
@@ -312,10 +312,10 @@ class Client
     public function handleHttpErrors(array $headers)
     {
         $exceptions = [
-            '401' => 'JsonRPC\AccessDeniedException',
-            '403' => 'JsonRPC\AccessDeniedException',
-            '404' => 'JsonRPC\ConnectionFailureException',
-            '500' => 'JsonRPC\ServerErrorException',
+            '401' => 'Rambler\JsonRpc\Exceptions\AccessDeniedException',
+            '403' => 'Rambler\JsonRpc\Exceptions\AccessDeniedException',
+            '404' => 'Rambler\JsonRpc\Exceptions\ConnectionFailureException',
+            '500' => 'Rambler\JsonRpc\Exceptions\ServerErrorException',
         ];
 
         foreach ($headers as $header) {

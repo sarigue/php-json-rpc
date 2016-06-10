@@ -1,6 +1,8 @@
 <?php
 
-use JsonRPC\Server;
+namespace Rambler\JsonRpc\Tests;
+
+use Rambler\JsonRpc\Server;
 
 class C
 {
@@ -10,11 +12,11 @@ class C
     }
 }
 
-class ServerProtocolTest extends PHPUnit_Framework_TestCase
+class ServerProtocolTest extends \PHPUnit_Framework_TestCase
 {
     public function testPositionalParameters()
     {
-        $subtract = function($minuend, $subtrahend) {
+        $subtract = function ($minuend, $subtrahend) {
             return $minuend - $subtrahend;
         };
 
@@ -38,11 +40,13 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
 
     public function testNamedParameters()
     {
-        $subtract = function($minuend, $subtrahend) {
+        $subtract = function ($minuend, $subtrahend) {
             return $minuend - $subtrahend;
         };
 
-        $server = new Server('{"jsonrpc": "2.0", "method": "subtract", "params": {"subtrahend": 23, "minuend": 42}, "id": 3}');
+        $server = new Server(
+            '{"jsonrpc": "2.0", "method": "subtract", "params": {"subtrahend": 23, "minuend": 42}, "id": 3}'
+        );
         $server->register('subtract', $subtract);
 
         $this->assertEquals(
@@ -50,7 +54,9 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
             json_decode($server->execute(), true)
         );
 
-        $server = new Server('{"jsonrpc": "2.0", "method": "subtract", "params": {"minuend": 42, "subtrahend": 23}, "id": 4}');
+        $server = new Server(
+            '{"jsonrpc": "2.0", "method": "subtract", "params": {"minuend": 42, "subtrahend": 23}, "id": 4}'
+        );
         $server->register('subtract', $subtract);
 
         $this->assertEquals(
@@ -62,8 +68,10 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
 
     public function testNotification()
     {
-        $update = function($p1, $p2, $p3, $p4, $p5) {};
-        $foobar = function() {};
+        $update = function ($p1, $p2, $p3, $p4, $p5) {
+        };
+        $foobar = function () {
+        };
 
 
         $server = new Server('{"jsonrpc": "2.0", "method": "update", "params": [1,2,3,4,5]}');
@@ -86,7 +94,10 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $server = new Server('{"jsonrpc": "2.0", "method": "foobar", "id": "1"}');
 
         $this->assertEquals(
-            json_decode('{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}', true),
+            json_decode(
+                '{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -108,7 +119,10 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $server = new Server('{"jsonrpc": "2.0", "method": 1, "params": "bar"}');
 
         $this->assertEquals(
-            json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true),
+            json_decode(
+                '{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -117,14 +131,17 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
     {
         $server = new Server('{"jsonrpc": "2.0", "method": "invalidresponse","id": 1}');
 
-        $invalidresponse = function() {
-            return pack("H*" ,'c32e');
+        $invalidresponse = function () {
+            return pack("H*", 'c32e');
         };
 
         $server->register('invalidresponse', $invalidresponse);
 
         $this->assertEquals(
-            json_decode('{"jsonrpc": "2.0","id": 1, "error": {"code": -32603, "message": "Internal error","data": "Malformed UTF-8 characters, possibly incorrectly encoded"}}', true),
+            json_decode(
+                '{"jsonrpc": "2.0","id": 1, "error": {"code": -32603, "message": "Internal error","data": "Malformed UTF-8 characters, possibly incorrectly encoded"}}',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -132,10 +149,12 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
 
     public function testBatchInvalidJson()
     {
-        $server = new Server('[
+        $server = new Server(
+            '[
           {"jsonrpc": "2.0", "method": "sum", "params": [1,2,4], "id": "1"},
           {"jsonrpc": "2.0", "method"
-        ]');
+        ]'
+        );
 
         $this->assertEquals(
             json_decode('{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}', true),
@@ -149,7 +168,10 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $server = new Server('[]');
 
         $this->assertEquals(
-            json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true),
+            json_decode(
+                '{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -160,7 +182,10 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $server = new Server('[1]');
 
         $this->assertEquals(
-            json_decode('[{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}]', true),
+            json_decode(
+                '[{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}]',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -171,11 +196,14 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $server = new Server('[1,2,3]');
 
         $this->assertEquals(
-            json_decode('[
+            json_decode(
+                '[
                 {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null},
                 {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null},
                 {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
-            ]', true),
+            ]',
+                true
+            ),
             json_decode($server->execute(), true)
         );
     }
@@ -183,7 +211,8 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
 
     public function testBatchOk()
     {
-        $server = new Server('[
+        $server = new Server(
+            '[
             {"jsonrpc": "2.0", "method": "sum", "params": [1,2,4], "id": "1"},
             {"jsonrpc": "2.0", "method": "notify_hello", "params": [7]},
             {"jsonrpc": "2.0", "method": "subtract", "params": [42,23], "id": "2"},
@@ -192,19 +221,29 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
             {"jsonrpc": "2.0", "method": "get_data", "id": "9"},
             {"jsonrpc": "2.0", "method": "doSomething", "id": 10},
             {"jsonrpc": "2.0", "method": "doStuff", "id": 15}
-        ]');
+        ]'
+        );
 
-        $server->register('sum', function($a, $b, $c) {
-            return $a + $b + $c;
-        });
+        $server->register(
+            'sum',
+            function ($a, $b, $c) {
+                return $a + $b + $c;
+            }
+        );
 
-        $server->register('subtract', function($minuend, $subtrahend) {
-            return $minuend - $subtrahend;
-        });
+        $server->register(
+            'subtract',
+            function ($minuend, $subtrahend) {
+                return $minuend - $subtrahend;
+            }
+        );
 
-        $server->register('get_data', function() {
-            return array('hello', 5);
-        });
+        $server->register(
+            'get_data',
+            function () {
+                return ['hello', 5];
+            }
+        );
 
         $server->attach(new C);
 
@@ -213,7 +252,8 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
         $response = $server->execute();
 
         $this->assertEquals(
-            json_decode('[
+            json_decode(
+                '[
                 {"jsonrpc": "2.0", "result": 7, "id": "1"},
                 {"jsonrpc": "2.0", "result": 19, "id": "2"},
                 {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null},
@@ -221,7 +261,9 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
                 {"jsonrpc": "2.0", "result": ["hello", 5], "id": "9"},
                 {"jsonrpc": "2.0", "result": "something", "id": "10"},
                 {"jsonrpc": "2.0", "result": "something", "id": "15"}
-            ]', true),
+            ]',
+                true
+            ),
             json_decode($response, true)
         );
     }
@@ -229,18 +271,26 @@ class ServerProtocolTest extends PHPUnit_Framework_TestCase
 
     public function testBatchNotifications()
     {
-        $server = new Server('[
+        $server = new Server(
+            '[
             {"jsonrpc": "2.0", "method": "notify_sum", "params": [1,2,4]},
             {"jsonrpc": "2.0", "method": "notify_hello", "params": [7]}
-        ]');
+        ]'
+        );
 
-        $server->register('notify_sum', function($a, $b, $c) {
+        $server->register(
+            'notify_sum',
+            function ($a, $b, $c) {
 
-        });
+            }
+        );
 
-        $server->register('notify_hello', function($id) {
+        $server->register(
+            'notify_hello',
+            function ($id) {
 
-        });
+            }
+        );
 
         $this->assertEquals('', $server->execute());
     }

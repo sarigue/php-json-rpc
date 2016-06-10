@@ -1,14 +1,14 @@
 <?php
 
-namespace Rambler;
+namespace Rambler\JsonRpc;
 
 use Closure;
-use Rambler\Exceptions\AccessDeniedException;
-use Rambler\Exceptions\AuthenticationFailure;
-use Rambler\Exceptions\InvalidJsonFormat;
-use Rambler\Exceptions\InvalidJsonRpcFormat;
-use Rambler\Exceptions\ResponseEncodingFailure;
-use Rambler\Exceptions\ResponseException;
+use Rambler\JsonRpc\Exceptions\AccessDeniedException;
+use Rambler\JsonRpc\Exceptions\AuthenticationFailure;
+use Rambler\JsonRpc\Exceptions\InvalidJsonFormat;
+use Rambler\JsonRpc\Exceptions\InvalidJsonRpcFormat;
+use Rambler\JsonRpc\Exceptions\ResponseEncodingFailure;
+use Rambler\JsonRpc\Exceptions\ResponseException;
 use ReflectionFunction;
 use ReflectionMethod;
 
@@ -581,7 +581,11 @@ class Server
             }
         }
 
-        throw new \BadFunctionCallException('Unable to find the procedure');
+        var_dump($procedure, array_keys($this->classes), isset($this->classes[$procedure]), method_exists(
+            $this->classes[$procedure][0],
+            $this->classes[$procedure][1]
+        ));
+        throw new \BadFunctionCallException(sprintf('Unable to find the procedure %s', $procedure));
     }
 
     /**
