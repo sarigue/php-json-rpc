@@ -1,11 +1,9 @@
 <?php
 
-namespace JsonRPC;
+namespace Rambler;
 
-use Exception;
-use BadFunctionCallException;
-use InvalidArgumentException;
-use RuntimeException;
+use Rambler\Exceptions\ConnectionFailureException;
+use Rambler\Exceptions\ResponseException;
 
 /**
  * JsonRPC client class
@@ -78,7 +76,7 @@ class Client
      * @access public
      * @var array
      */
-    public $batch = array();
+    public $batch = [];
 
     /**
      * Enable debug output to the php error log
@@ -94,12 +92,12 @@ class Client
      * @access private
      * @var array
      */
-    private $headers = array(
+    private $headers = [
         'User-Agent: JSON-RPC PHP Client <https://github.com/fguillot/JsonRPC>',
         'Content-Type: application/json',
         'Accept: application/json',
         'Connection: close',
-    );
+    ];
 
     /**
      * Cookies
@@ -107,7 +105,7 @@ class Client
      * @access private
      * @var array
      */
-    private $cookies = array();
+    private $cookies = [];
 
     /**
      * SSL certificates verification
@@ -121,12 +119,12 @@ class Client
      * Constructor
      *
      * @access public
-     * @param  string    $url                 Server URL
-     * @param  integer   $timeout             HTTP timeout
-     * @param  array     $headers             Custom HTTP headers
-     * @param  bool      $suppress_errors     Suppress exceptions
+     * @param  string $url Server URL
+     * @param  integer $timeout HTTP timeout
+     * @param  array $headers Custom HTTP headers
+     * @param  bool $suppress_errors Suppress exceptions
      */
-    public function __construct($url, $timeout = 3, $headers = array(), $suppress_errors = false)
+    public function __construct($url, $timeout = 3, $headers = [], $suppress_errors = false)
     {
         $this->url = $url;
         $this->timeout = $timeout;
@@ -138,8 +136,8 @@ class Client
      * Automatic mapping of procedures
      *
      * @access public
-     * @param  string   $method   Procedure name
-     * @param  array    $params   Procedure arguments
+     * @param  string $method Procedure name
+     * @param  array $params Procedure arguments
      * @return mixed
      */
     public function __call($method, array $params)
@@ -156,8 +154,8 @@ class Client
      * Set authentication parameters
      *
      * @access public
-     * @param  string   $username   Username
-     * @param  string   $password   Password
+     * @param  string $username Username
+     * @param  string $password Password
      * @return Client
      */
     public function authentication($username, $password)
@@ -177,7 +175,7 @@ class Client
     public function batch()
     {
         $this->is_batch = true;
-        $this->batch = array();
+        $this->batch = [];
 
         return $this;
     }
@@ -201,14 +199,15 @@ class Client
      * Execute a procedure
      *
      * @access public
-     * @param  string   $procedure   Procedure name
-     * @param  array    $params      Procedure arguments
+     * @param  string $procedure Procedure name
+     * @param  array $params Procedure arguments
      * @return mixed
      */
-    public function execute($procedure, array $params = array())
+    public function execute($procedure, array $params = [])
     {
         if ($this->is_batch) {
             $this->batch[] = $this->prepareRequest($procedure, $params);
+
             return $this;
         }
 
@@ -221,19 +220,19 @@ class Client
      * Prepare the payload
      *
      * @access public
-     * @param  string   $procedure   Procedure name
-     * @param  array    $params      Procedure arguments
+     * @param  string $procedure Procedure name
+     * @param  array $params Procedure arguments
      * @return array
      */
-    public function prepareRequest($procedure, array $params = array())
+    public function prepareRequest($procedure, array $params = [])
     {
-        $payload = array(
+        $payload = [
             'jsonrpc' => '2.0',
-            'method' => $procedure,
-            'id' => mt_rand()
-        );
+            'method'  => $procedure,
+            'id'      => mt_rand(),
+        ];
 
-        if (! empty($params)) {
+        if (!empty($params)) {
             $payload['params'] = $params;
         }
 
@@ -244,13 +243,13 @@ class Client
      * Parse the response and return the procedure result
      *
      * @access public
-     * @param  array     $payload
+     * @param  array $payload
      * @return mixed
      */
     public function parseResponse(array $payload)
     {
         if ($this->isBatchResponse($payload)) {
-            $results = array();
+            $results = [];
 
             foreach ($payload as $response) {
                 $results[] = $this->getResult($response);
@@ -278,13 +277,13 @@ class Client
         try {
             switch ($error['code']) {
                 case -32700:
-                    throw new RuntimeException('Parse error: '. $error['message']);
+                    throw new \RuntimeException('Parse error: ' . $error['message']);
                 case -32600:
-                    throw new RuntimeException('Invalid Request: '. $error['message']);
+                    throw new \RuntimeException('Invalid Request: ' . $error['message']);
                 case -32601:
-                    throw new BadFunctionCallException('Procedure not found: '. $error['message']);
+                    throw new \BadFunctionCallException('Procedure not found: ' . $error['message']);
                 case -32602:
-                    throw new InvalidArgumentException('Invalid arguments: '. $error['message']);
+                    throw new \InvalidArgumentException('Invalid arguments: ' . $error['message']);
                 default:
                     throw new ResponseException(
                         $error['message'],
@@ -293,7 +292,7 @@ class Client
                         isset($error['data']) ? $error['data'] : null
                     );
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             if (true === $this->suppress_errors) {
                 return $e;
             }
@@ -306,23 +305,23 @@ class Client
      * Throw an exception according the HTTP response
      *
      * @access public
-     * @param  array   $headers
+     * @param  array $headers
      * @throws AccessDeniedException
      * @throws ServerErrorException
      */
     public function handleHttpErrors(array $headers)
     {
-        $exceptions = array(
+        $exceptions = [
             '401' => 'JsonRPC\AccessDeniedException',
             '403' => 'JsonRPC\AccessDeniedException',
             '404' => 'JsonRPC\ConnectionFailureException',
             '500' => 'JsonRPC\ServerErrorException',
-        );
+        ];
 
         foreach ($headers as $header) {
             foreach ($exceptions as $code => $exception) {
-                if (strpos($header, 'HTTP/1.0 '.$code) !== false || strpos($header, 'HTTP/1.1 '.$code) !== false) {
-                    throw new $exception('Response: '.$header);
+                if (strpos($header, 'HTTP/1.0 ' . $code) !== false || strpos($header, 'HTTP/1.1 ' . $code) !== false) {
+                    throw new $exception('Response: ' . $header);
                 }
             }
         }
@@ -340,7 +339,7 @@ class Client
     {
         $stream = @fopen(trim($this->url), 'r', false, $this->getContext($payload));
 
-        if (! is_resource($stream)) {
+        if (!is_resource($stream)) {
             throw new ConnectionFailureException('Unable to establish a connection');
         }
 
@@ -348,13 +347,15 @@ class Client
 
         // Parse received cookies
         $response_headers = $metadata['wrapper_data'];
-        foreach($response_headers as $response_header){
+        foreach ($response_headers as $response_header) {
             $pos = stripos($response_header, 'Set-Cookie:');
-            if ($pos === false) continue;
-            $cookie_defitions = explode(';', substr($response_header, $pos+11));
-            foreach($cookie_defitions as $cookie_defition){
+            if ($pos === false) {
+                continue;
+            }
+            $cookie_defitions = explode(';', substr($response_header, $pos + 11));
+            foreach ($cookie_defitions as $cookie_defition) {
                 $cookie_defition_array = explode('=', $cookie_defition);
-                if (count($cookie_defition_array) == 2){
+                if (count($cookie_defition_array) == 2) {
                     $cookie_name = trim($cookie_defition_array[0]);
                     $cookie_value = $cookie_defition_array[1];
                     $this->cookies[$cookie_name] = $cookie_value;
@@ -365,61 +366,63 @@ class Client
         $response = json_decode(stream_get_contents($stream), true);
 
         if ($this->debug) {
-            error_log('==> Request: '.PHP_EOL.json_encode($payload, JSON_PRETTY_PRINT));
-            error_log('==> Response: '.PHP_EOL.json_encode($response, JSON_PRETTY_PRINT));
+            error_log('==> Request: ' . PHP_EOL . json_encode($payload, JSON_PRETTY_PRINT));
+            error_log('==> Response: ' . PHP_EOL . json_encode($response, JSON_PRETTY_PRINT));
         }
 
         $this->handleHttpErrors($metadata['wrapper_data']);
 
-        return is_array($response) ? $response : array();
+        return is_array($response) ? $response : [];
     }
 
     /**
      * Prepare stream context
      *
      * @access private
-     * @param  array   $payload
+     * @param  array $payload
      * @return resource
      */
     private function getContext(array $payload)
     {
         $headers = $this->headers;
 
-        if (! empty($this->username) && ! empty($this->password)) {
-            $headers[] = 'Authorization: Basic '.base64_encode($this->username.':'.$this->password);
+        if (!empty($this->username) && !empty($this->password)) {
+            $headers[] = 'Authorization: Basic ' . base64_encode($this->username . ':' . $this->password);
         }
 
-        if (count($this->cookies)){
-            $cookie_definitions = array();
-            foreach($this->cookies as $cookie_name=>$cookie_value){
-                $cookie_definitions[] = $cookie_name.'='.$cookie_value;
+        if (count($this->cookies)) {
+            $cookie_definitions = [];
+            foreach ($this->cookies as $cookie_name => $cookie_value) {
+                $cookie_definitions[] = $cookie_name . '=' . $cookie_value;
             }
-            $headers[] = 'Cookie: '.implode('; ', $cookie_definitions) ;
+            $headers[] = 'Cookie: ' . implode('; ', $cookie_definitions);
 
         }
 
-        return stream_context_create(array(
-            'http' => array(
-                'method' => 'POST',
-                'protocol_version' => 1.1,
-                'timeout' => $this->timeout,
-                'max_redirects' => 2,
-                'header' => implode("\r\n", $headers),
-                'content' => json_encode($payload),
-                'ignore_errors' => true,
-            ),
-            "ssl" => array(
-                "verify_peer" => $this->ssl_verify_peer,
-                "verify_peer_name" => $this->ssl_verify_peer,
-            )
-        ));
+        return stream_context_create(
+            [
+                'http' => [
+                    'method'           => 'POST',
+                    'protocol_version' => 1.1,
+                    'timeout'          => $this->timeout,
+                    'max_redirects'    => 2,
+                    'header'           => implode("\r\n", $headers),
+                    'content'          => json_encode($payload),
+                    'ignore_errors'    => true,
+                ],
+                "ssl"  => [
+                    "verify_peer"      => $this->ssl_verify_peer,
+                    "verify_peer_name" => $this->ssl_verify_peer,
+                ],
+            ]
+        );
     }
 
     /**
      * Return true if we have a batch response
      *
      * @access public
-     * @param  array    $payload
+     * @param  array $payload
      * @return boolean
      */
     private function isBatchResponse(array $payload)
@@ -431,7 +434,7 @@ class Client
      * Get a RPC call result
      *
      * @access private
-     * @param  array    $payload
+     * @param  array $payload
      * @return mixed
      */
     private function getResult(array $payload)
@@ -458,14 +461,14 @@ class Client
      * Set cookies
      *
      * @access public
-     * @param array   $cookies
-     * @param boolean   $replace
+     * @param array $cookies
+     * @param boolean $replace
      */
-    public function setCookies(array $cookies, $replace=false)
+    public function setCookies(array $cookies, $replace = false)
     {
         if ($replace) {
             $this->cookies = $cookies;
-        }else{
+        } else {
             $this->cookies = array_merge($this->cookies, $cookies);
         }
     }

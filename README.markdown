@@ -17,11 +17,6 @@ Features
 - Requirements: PHP >= 5.6
 - License: MIT
 
-Author
-------
-
-Frédéric Guillot
-
 Installation with Composer
 --------------------------
 
