@@ -581,10 +581,6 @@ class Server
             }
         }
 
-        var_dump($procedure, array_keys($this->classes), isset($this->classes[$procedure]), method_exists(
-            $this->classes[$procedure][0],
-            $this->classes[$procedure][1]
-        ));
         throw new \BadFunctionCallException(sprintf('Unable to find the procedure %s', $procedure));
     }
 

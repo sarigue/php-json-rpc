@@ -247,7 +247,7 @@ class ServerProtocolTest extends \PHPUnit_Framework_TestCase
 
         $server->attach(new C);
 
-        $server->bind('doStuff', 'C', 'doSomething');
+        $server->bind('doStuff', 'Rambler\JsonRpc\Tests\C', 'doSomething');
 
         $response = $server->execute();
 

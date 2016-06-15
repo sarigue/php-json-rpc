@@ -87,8 +87,8 @@ class ServerProcedureTest extends \PHPUnit_Framework_TestCase
     public function testBindNamedArguments()
     {
         $server = new Server;
-        $server->bind('getAllA', 'A', 'getAll');
-        $server->bind('getAllB', 'B', 'getAll');
+        $server->bind('getAllA', 'Rambler\JsonRpc\Tests\A', 'getAll');
+        $server->bind('getAllB', 'Rambler\JsonRpc\Tests\B', 'getAll');
         $server->bind('getAllC', new B, 'getAll');
         $this->assertEquals(6, $server->executeProcedure('getAllA', ['p2' => 4, 'p1' => -2]));
         $this->assertEquals(10, $server->executeProcedure('getAllA', ['p2' => 4, 'p3' => 8, 'p1' => -2]));
@@ -99,8 +99,8 @@ class ServerProcedureTest extends \PHPUnit_Framework_TestCase
     public function testBindPositionalArguments()
     {
         $server = new Server;
-        $server->bind('getAllA', 'A', 'getAll');
-        $server->bind('getAllB', 'B', 'getAll');
+        $server->bind('getAllA', 'Rambler\JsonRpc\Tests\A', 'getAll');
+        $server->bind('getAllB', 'Rambler\JsonRpc\Tests\B', 'getAll');
         $this->assertEquals(6, $server->executeProcedure('getAllA', [4, -2]));
         $this->assertEquals(2, $server->executeProcedure('getAllA', [4, 0, -2]));
         $this->assertEquals(4, $server->executeProcedure('getAllB', [2]));
