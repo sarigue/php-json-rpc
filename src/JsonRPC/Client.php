@@ -118,6 +118,22 @@ class Client
     public $ssl_verify_peer = true;
 
     /**
+     * SSL certificate file
+     *
+     * @access public
+     * @var string
+     */
+    public $ssl_cert_path = null;
+
+    /**
+     * SSL certificate file password
+     *
+     * @access public
+     * @var string
+     */
+    public $ssl_cert_pass = null;
+
+    /**
      * Constructor
      *
      * @access public
@@ -408,9 +424,11 @@ class Client
                 'content' => json_encode($payload),
                 'ignore_errors' => true,
             ),
-            "ssl" => array(
-                "verify_peer" => $this->ssl_verify_peer,
-                "verify_peer_name" => $this->ssl_verify_peer,
+            'ssl' => array(
+                'verify_peer' => $this->ssl_verify_peer,
+                'verify_peer_name' => $this->ssl_verify_peer,
+                'local_cert' => $this->ssl_cert_path,
+                'passphrase' => $this->ssl_cert_pass
             )
         ));
     }
