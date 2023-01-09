@@ -380,6 +380,8 @@ class Client
 
         $response = json_decode(stream_get_contents($stream), true);
 
+        @fclose($stream);
+
         if ($this->debug) {
             error_log('==> Request: '.PHP_EOL.json_encode($payload, JSON_PRETTY_PRINT));
             error_log('==> Response: '.PHP_EOL.json_encode($response, JSON_PRETTY_PRINT));
